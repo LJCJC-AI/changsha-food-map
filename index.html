@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>日刻 · 长沙美食地图</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.18.0/dist/maplibre-gl.css">
+<style>
+:root{font:16px/1.5 Inter,"Noto Sans CJK SC","Microsoft YaHei UI",sans-serif;color:#1a2926;background:#eef2ee;--green:#165b46;--line:#dce5dc;--muted:#536661}
+*{box-sizing:border-box}body{margin:0}header,main{max-width:1530px;margin:auto;padding:0 clamp(16px,3vw,42px)}header{display:flex;justify-content:space-between;align-items:end;gap:20px;padding-top:26px;padding-bottom:20px}h1{font-size:clamp(26px,4vw,40px);line-height:1.16;margin:3px 0 0;letter-spacing:-.03em}.brand{color:var(--green);font-size:.88rem;font-weight:700;letter-spacing:.14em}.search{width:min(100%,350px);border:1px solid var(--line);background:white;border-radius:14px;padding:12px 16px;font:inherit;color:inherit}button{font:inherit;color:inherit;cursor:pointer}button:focus-visible,input:focus-visible{outline:2px solid #176e55;outline-offset:3px}.filters{display:flex;gap:7px;flex-wrap:wrap;padding:0 0 15px}.chip{background:#fff;border:1px solid var(--line);border-radius:22px;padding:5px 13px;font-size:.875rem}.chip[aria-pressed=true]{background:var(--green);color:#fff;border-color:var(--green)}.layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(270px,355px);gap:15px;height:max(525px,calc(100dvh - 176px));padding-bottom:20px}.map-panel,.list-panel{position:relative;min-height:0;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:#fff}#map{width:100%;height:100%;background:#e2eae2}.layers{position:absolute;z-index:500;right:10px;top:10px;display:flex;gap:6px}.layers .chip{box-shadow:0 2px 8px #1b39251c}.list-panel{display:flex;flex-direction:column}.list-head{margin:0;padding:12px 15px;border-bottom:1px solid var(--line);font-size:1rem}.list{min-height:0;overflow:auto;padding:6px 8px}.place{display:block;text-align:left;padding:10px;width:100%;background:#fff;border:1px solid transparent;border-radius:10px}.place:hover,.place[aria-current=true]{background:#eef6ef;border-color:#d4e5d6}.name{display:block;font-weight:700;overflow-wrap:anywhere}.meta{display:block;font-size:.86rem;color:var(--muted);overflow-wrap:anywhere}.fallback{padding:55px 16px;color:var(--muted)}.empty{padding:16px;color:var(--muted)}@media(max-width:750px){header{align-items:stretch;flex-direction:column;gap:13px}.search{width:100%}.layout{height:auto;grid-template-columns:1fr}.map-panel{height:48dvh;min-height:300px}.list-panel{height:48dvh;min-height:290px}}
+.map-status{position:absolute;top:52px;right:10px;z-index:600;margin:0;padding:7px 10px;background:white;border-radius:8px;font-size:.85rem}.maplibregl-popup-content{color:#1a2926}[hidden]{display:none!important}
+.pin-label{position:absolute;left:var(--label-x);top:var(--label-y);visibility:hidden;pointer-events:none;white-space:nowrap;max-width:210px;overflow:hidden;text-overflow:ellipsis;padding:2px 6px;border:1px solid #d4dfd7;border-radius:5px;background:#fffffff0;color:#21342c;font:600 13px/1.25 Inter,"Microsoft YaHei UI",sans-serif}.pin-label.shown{visibility:visible}
+.pin-label.shown{pointer-events:auto;cursor:pointer}.popup-name{cursor:pointer}
+.copy-toast{position:fixed;z-index:1000;top:16px;left:50%;translate:-50% 0;padding:7px 14px;border-radius:10px;background:#183a30;color:white;box-shadow:0 4px 14px #203b3333;pointer-events:none}
+.copy-buffer{position:fixed;left:-9999px;top:0}
+.map-marker{width:26px;height:26px;cursor:pointer}.pin{width:100%;height:100%;display:grid;place-items:center;color:#fff;background:var(--pin);border:1.5px solid #fff;border-radius:8px;box-shadow:0 1px 3px #12273166}.pin svg{width:19px;height:19px}.pin.approximate{outline:1px dashed #8a570d;outline-offset:1px}.map-marker:focus-visible .pin,.map-marker[aria-expanded=true] .pin{outline:2px solid #17649a;outline-offset:2px}
+</style>
+</head>
+<body>
+<header><div><div class="brand">日刻 · 长沙</div><h1>长沙美食地图</h1></div><input id="search" class="search" type="search" placeholder="搜索店名、菜系或地址" aria-label="搜索店名、菜系或地址"></header>
+<main><nav id="filters" class="filters" aria-label="地点分类"></nav><div class="layout">
+<section class="map-panel" aria-label="长沙地图"><div id="map"><p class="fallback">地图加载需要联网及浏览器图形支持，地点列表仍可浏览。</p></div><div id="layers" class="layers" hidden><button class="chip" id="metro" aria-pressed="false">地铁站</button><button class="chip" id="scenic" aria-pressed="false">景点</button><button class="chip" id="ktv" aria-pressed="false">KTV</button><button class="chip" id="mall" aria-pressed="false">商场</button></div><p id="map-status" class="map-status" role="status" hidden></p></section>
+<section class="list-panel" aria-label="地点列表"><h2 id="count" class="list-head" aria-live="polite"></h2><div id="list" class="list"></div></section>
+</div></main><div id="copy-toast" class="copy-toast" role="status" hidden></div>
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.18.0/dist/maplibre-gl.js"></script><script>
+window.DAYMARK_MAP_DATA = {"places":[{"Name":"米兰美食","Category":"新疆风味","Address":"天心区","Lat":28.183420742524333,"Lon":112.97485645103455,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"西域阿里马","Category":"新疆风味","Address":"西域阿里马·新疆菜（桂花路店），桂花路几米空间一楼374号","Lat":28.1732138,"Lon":113.0033103,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"谷丽麦馕（万象城店）","Category":"新疆风味","Address":"长沙万象城","Lat":28.22174561142719,"Lon":112.94558771827701,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"楼兰小洞天","Category":"新疆风味","Address":"雨花区香樟路溪悦荟西岸 B15 栋（溪悦荟店）","Lat":28.1434324,"Lon":113.0266313,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"疆域一号","Category":"新疆风味","Address":"","Lat":28.167406596512922,"Lon":112.94676396954804,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"成都小酒馆（阜埠河店）","Category":"川菜","Address":"阜埠河 · 地铁站参考点","Lat":28.171784341737876,"Lon":112.9429913399506,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"笨萝卜（太平街店）","Category":"湘菜","Address":"天心区西牌楼街55号西牌楼2楼","Lat":28.1969667,"Lon":112.9671811,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"椰汁皮塔","Category":"甜品糖水","Address":"岳麓区天马路123号（湖南大学陈家湖宿舍店）","Lat":28.1714159,"Lon":112.941753,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"小草甜汤（后湖）","Category":"甜品糖水","Address":"后湖国际艺术区 · 片区参考点","Lat":28.15583575623334,"Lon":112.93258610710143,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"方心糖水","Category":"甜品糖水","Address":"","Lat":28.176700861650243,"Lon":112.93977979167937,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"阿威","Category":"甜品糖水","Address":"","Lat":28.169832189030913,"Lon":112.93435100063323,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"台湾咸酥鸡","Category":"小吃","Address":"","Lat":null,"Lon":null,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"臭名远扬臭豆腐（总店）","Category":"小吃","Address":"豆夫酥酥臭名远扬臭豆腐，岳麓区麓山南路364号","Lat":28.1742339,"Lon":112.9388091,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"东北熏肉大饼","Category":"东北菜","Address":"奚贵立东北熏肉大饼（后湖店），后湖小区4栋1单元1楼2号","Lat":28.155665,"Lon":112.9331114,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"荣侍坊","Category":"咖啡茶饮","Address":"","Lat":28.163138060040442,"Lon":112.94324520572661,"Approximate":false,"Rating":"人上人","HasEaten":true},{"Name":"墨西哥的饼","Category":"墨西哥风味","Address":"岳麓区麓山南路社区卫生服务站东北侧","Lat":28.169281182978086,"Lon":112.93193257555545,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"五品芝麻磨坊","Category":"甜品糖水","Address":"","Lat":28.17743999001197,"Lon":112.93970831611637,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"麓南石炉烧饼","Category":"小吃","Address":"","Lat":28.168968558437374,"Lon":112.93231903952153,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"狂野华夫","Category":"甜品糖水","Address":"","Lat":28.16909827696571,"Lon":112.94318445899967,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"金妹坨三明治","Category":"小吃","Address":"","Lat":28.163407630373612,"Lon":112.94328812107085,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"天马14栋","Category":"湘菜","Address":"天马片区","Lat":28.162847207077345,"Lon":112.94475260719298,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"麓湘人家","Category":"湘菜","Address":"","Lat":28.170577006174742,"Lon":112.94067296728133,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"一帆家菜馆（天马店）","Category":"家常菜","Address":"岳麓区天马路大学城学府楼1号门面","Lat":28.1719936,"Lon":112.9437532,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"贵叔家常菜","Category":"家常菜","Address":"岳麓区天马安置小区25栋","Lat":28.1633725,"Lon":112.9469583,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"湘粤牛杂","Category":"粤菜","Address":"新湘粤牛杂（大学城店），麓山南路300号","Lat":28.1751093,"Lon":112.9391548,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"刘记烧腊","Category":"粤菜","Address":"岳麓区天马路172号（天马店）","Lat":28.1720059,"Lon":112.9423757,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"盛香亭（麓山通程店）","Category":"卤味","Address":"枫林一路2号通程商业广场外广场东向2号","Lat":28.1990249,"Lon":112.9474993,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"胖伢子（大学城店）","Category":"湘菜","Address":"胖伢子·口味菜，岳麓区天马小区3栋","Lat":28.1637041,"Lon":112.9442681,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"东北一家人东北菜","Category":"东北菜","Address":"","Lat":28.17171432012712,"Lon":112.94251296266555,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"麓南小排档","Category":"家常菜","Address":"","Lat":28.179197591690286,"Lon":112.93893489583968,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"玖集","Category":"家常菜","Address":"","Lat":28.173572773869843,"Lon":112.93814900859832,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"热灶兄弟","Category":"湘菜","Address":"","Lat":28.228963395485962,"Lon":112.95299350660832,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"细伢子","Category":"家常菜","Address":"","Lat":28.1965572379752,"Lon":112.96794298633574,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"解忧小火锅","Category":"火锅","Address":"","Lat":28.176658303246892,"Lon":112.93950888856887,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"大树下烤肉","Category":"烧烤","Address":"天心区新开铺路与友谊路交叉口（新开铺店）","Lat":28.1292273,"Lon":112.9617942,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"花道寿司","Category":"寿司","Address":"岳麓区麓山南路308号（麓山南路店）","Lat":28.1749377,"Lon":112.9391557,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"盛香亭（河西王府井店）","Category":"卤味","Address":"岳麓区金星中路383号王府井购物中心负一楼","Lat":28.2219856,"Lon":112.928157,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"盛香亭（星沙万象汇店）","Category":"卤味","Address":"长沙县金甲坪社区万象汇LG10a号商铺","Lat":28.2527875,"Lon":113.08114,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"笨萝卜（红星店）","Category":"湘菜","Address":"红星路磊鑫汽修旁","Lat":28.1192748,"Lon":113.0076958,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"笨萝卜（星沙店）","Category":"湘菜","Address":"长沙县泉塘安置区E区1栋660号101","Lat":28.2209953,"Lon":113.1100608,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"笨萝卜（高桥西子花苑店）","Category":"湘菜","Address":"东进路永祥小区E6栋2单元底商","Lat":28.1853352,"Lon":113.0210131,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"笨萝卜（涉外店）","Category":"湘菜","Address":"麓松路综合大楼一楼","Lat":28.202993,"Lon":112.8657898,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"实分满糖水铺(大学城天马店)","Category":"甜品糖水","Address":"岳麓区渔湾码头东北1门东南110米","Lat":28.171762017546264,"Lon":112.9394532758392,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"阿捡汴京炸鸡","Category":"小吃","Address":"","Lat":28.198979642773928,"Lon":112.98138737123998,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"仙庙烧鸡","Category":"粤菜","Address":"","Lat":28.161988249469694,"Lon":112.94155656736882,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"平湖居东厨","Category":"家常菜","Address":"桂花树街","Lat":28.182663017513008,"Lon":113.00216376226933,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"源野小坐","Category":"家常菜","Address":"","Lat":28.154387896744026,"Lon":112.90604412001164,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"超级卢鱼翁","Category":"烤鱼","Address":"","Lat":28.20118274003946,"Lon":112.85574733656438,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"拾来运转一锅鲜","Category":"家常菜","Address":"四方坪","Lat":28.240343955185807,"Lon":113.00712048452885,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"吴记麻浪烫","Category":"麻辣烫","Address":"","Lat":null,"Lon":null,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"甜胡椒扒房","Category":"西餐","Address":"","Lat":28.21234408621897,"Lon":112.97972976606877,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"家和世厨老饭铺（浏正街店）","Category":"湘菜","Address":"浏正街25号","Lat":28.1948774,"Lon":112.98011,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"半山厨·土菜研究院（梅溪湖店）","Category":"湘菜","Address":"岳麓区熊家冲22号","Lat":28.194076,"Lon":112.9127906,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"原铁棚子口味菜（浏阳河）","Category":"湘菜","Address":"浏阳河","Lat":28.206822651142943,"Lon":113.03374945562871,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"蚝力士","Category":"海鲜","Address":"","Lat":28.243141647747187,"Lon":112.99886464518102,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"麻小二正宗重庆老火锅（天心阁店）","Category":"火锅","Address":"天心区高正街43号","Lat":28.1888038,"Lon":112.9753333,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"新辉记铜锅涮肉（四方坪）","Category":"火锅","Address":"四方坪","Lat":28.243212534274498,"Lon":112.99912750166447,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"飞燕潮汕牛魔丸","Category":"火锅","Address":"","Lat":28.209484131934396,"Lon":113.01431953352483,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"味之绝美蛙鱼头火锅（五一广场）","Category":"火锅","Address":"五一广场","Lat":28.198204293016442,"Lon":112.97498762053044,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"烫锅鲜砂锅串串","Category":"火锅","Address":"","Lat":null,"Lon":null,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"八百里牛烤牛","Category":"烧烤","Address":"","Lat":28.136139172232742,"Lon":112.9764038268903,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"王小米的饭盒","Category":"湘菜","Address":"","Lat":28.220668244528213,"Lon":112.98259436529668,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"建华家菜馆","Category":"湘菜","Address":"天心区天心区坡子街街道白沙路232号(共悦白沙1993)A栋05、06号","Lat":28.18013998055945,"Lon":112.9707585156518,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"大碗先生（高铁吾悦店）","Category":"湘菜","Address":"东山街道劳动东路高铁吾悦广场6楼6019号","Lat":28.15955327162022,"Lon":113.05350794244185,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"炊烟小炒黄牛肉（五一广场店）","Category":"湘菜","Address":"芙蓉区东牌楼街58号五一华府一楼","Lat":28.1970429,"Lon":112.9739673,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"飞旺茶油嗦螺","Category":"夜宵大排档","Address":"","Lat":null,"Lon":null,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"严三毛","Category":"夜宵大排档","Address":"","Lat":28.119022846999467,"Lon":112.98751890104802,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"朝阳满弟.长沙菜16小时大牌档","Category":"夜宵大排档","Address":"雨花区赤岗冲小区3片2栋101","Lat":28.17548399863029,"Lon":113.00079572217652,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"盟重烧烤（北辰店）","Category":"烧烤","Address":"北辰三角洲奥城D2区N单元G层45号商铺","Lat":28.238812468998354,"Lon":112.97475117369622,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"辣不怕口味虾(长沙总店)","Category":"夜宵大排档","Address":"芙蓉区凌霄路53号","Lat":28.20589669475457,"Lon":113.01627130254445,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"东城虾匠·龙虾烧烤(总店)","Category":"夜宵大排档","Address":"芙蓉区远大二路与科教路交叉口西南140米","Lat":28.208278394934872,"Lon":113.08144971564407,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"北二楼大排档","Category":"夜宵大排档","Address":"","Lat":28.198554146652153,"Lon":112.97080337446721,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"北里火锅","Category":"火锅","Address":"","Lat":null,"Lon":null,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"蓉桂火锅","Category":"火锅","Address":"开福区四方坪街道四方社区先福安置区A6栋2门1楼","Lat":28.2386607244913,"Lon":113.00856275375925,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"大斌府火锅（浏阳河店）","Category":"火锅","Address":"浏阳河大道与荷花路交叉口北100米路西","Lat":28.195274657072503,"Lon":113.04087860694634,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"无刺泡泡(万家丽国际购物广场)","Category":"烤鱼","Address":"芙蓉区东屯渡街道万家丽中路一段99号701的万家丽国际购物广场七楼区A07号商铺","Lat":28.193378889389933,"Lon":113.02591050966285,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"芸姐烤鱼(林科大店)","Category":"烤鱼","Address":"天心区青园路382号惠必购二楼(芸姐烤鱼)","Lat":28.135969121211478,"Lon":112.98727398301176,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"辉哥留一手特色烤鱼(砂子塘店)","Category":"烤鱼","Address":"雨花区砂子塘街道砂子塘夜宵一条街19栋113号","Lat":28.1631587151498,"Lon":112.99007950443263,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"炭围日式烧肉（浏阳河店）","Category":"烧烤","Address":"浏阳河大道二段300号","Lat":28.196939045569422,"Lon":113.04006548712827,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"齐佳烤肉","Category":"烧烤","Address":"","Lat":null,"Lon":null,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"韩满园韩国料理(启迪协信中心店)","Category":"烧烤","Address":"岳麓区潇湘北路三段808号协信中心星光PARK商业街3栋2层2148-2155","Lat":28.248768317131294,"Lon":112.95341341370825,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"牛家酒场(Hipark凤凰海购物公园店)","Category":"烧烤","Address":"开福区晴岚路68号Hipark凤凰海购物公园F3层","Lat":28.240418641808787,"Lon":112.97774873499984,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"唐三炭·熟成烤肉(长沙首店)","Category":"烧烤","Address":"芙蓉区人民西路186号新青年公寓101室","Lat":28.191429583092912,"Lon":112.9725505843505,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"阿亲家.韩式无限烤肉(览秀城店)","Category":"烧烤","Address":"岳麓区天顶街道星湖社区环湖路1177号方茂苑(二期)12栋101L1层L124A","Lat":28.200432498403007,"Lon":112.89806234250148,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"ALLSPICE墨西哥餐厅","Category":"墨西哥风味","Address":"","Lat":28.246133018242972,"Lon":112.95168458860906,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"麓山下咖啡馆(觅花园店)","Category":"咖啡茶饮","Address":"芙蓉区车站北路湖南湘绣博物馆4楼楼顶花园","Lat":28.202339210846457,"Lon":113.00435330357683,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"TAIFORKS大福食堂","Category":"韩餐","Address":"","Lat":null,"Lon":null,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"Heroine落日江景餐厅","Category":"漂亮饭","Address":"","Lat":28.205532069088715,"Lon":112.96587347429784,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"HolyShift切幻·空中旋转餐厅","Category":"漂亮饭","Address":"","Lat":28.19744784880793,"Lon":112.97024011057408,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"Time&Friends花间客江景餐厅","Category":"漂亮饭","Address":"","Lat":28.23494212158516,"Lon":112.95861005228551,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"仙都辣酱鸭","Category":"酱板鸭","Address":"岳麓区望城坡街道玉兰路与咸嘉湖西路交叉口老摩托车市场251号","Lat":28.21606578747576,"Lon":112.90545779401785,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"金鼎记酱板鸭司门口店","Category":"酱板鸭","Address":"芙蓉区解放西路127号","Lat":28.19469950008532,"Lon":112.97262108371898,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"金湘权(金北店)","Category":"酱板鸭","Address":"开福区金北路1649号","Lat":28.270548716504585,"Lon":112.97197418871542,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"湘潭葱油粑粑(点饺子)","Category":"小吃","Address":"开福区望麓园街道蔡锷北路稻谷仓1条巷2号","Lat":28.209155030602698,"Lon":112.97688526420781,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"金记糖油坨坨(太平街店)","Category":"小吃","Address":"天心区太平街新胜村3号(太平街北门进太平街10米左边第一条巷子)","Lat":28.198446910262316,"Lon":112.96648906831841,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"王嗲刮凉粉","Category":"小吃","Address":"天心区太平街121号(瑞幸咖啡正对面小巷口)","Lat":28.19762555218651,"Lon":112.96623096475427,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"陈记捆鸡","Category":"小吃","Address":"开福区蔡锷北路331号","Lat":28.209084324237086,"Lon":112.97606811098258,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"阳记紫苏桃子","Category":"小吃","Address":"天心区学院街11号(南门口地铁站1号口步行210米)","Lat":28.188433303778368,"Lon":112.96926879987842,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"胡记炸炸炸","Category":"小吃","Address":"开福区局官祠巷与蔡锷北路交叉口东20米","Lat":28.205218764145947,"Lon":112.97624082185384,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"刘记里脊肉(大学城店)","Category":"小吃","Address":"岳麓区麓山南路330-1号","Lat":28.17467693751344,"Lon":112.93898705853123,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"汪记生煎包","Category":"早餐","Address":"天心区坡子街街道书院路上碧湘街59号","Lat":28.185953093256284,"Lon":112.96893410150975,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"天马牛肉饼","Category":"早餐","Address":"天心区坡子街街道西牌楼7栋104","Lat":28.197063060059726,"Lon":112.96757167289896,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"百年德园（侯家塘店）","Category":"早餐","Address":"芙蓉中路三段98号","Lat":28.172854004319905,"Lon":112.97926283472515,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"矮子粉店（湘春路店）","Category":"粉面","Address":"湘春路339号","Lat":28.2130470828968,"Lon":112.96955488522367,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"肆姐面粉店（星月楼店）","Category":"粉面","Address":"天心区坡子街星月楼132号","Lat":28.1936976,"Lon":112.9665572,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"甘长顺（解放西路总店）","Category":"粉面","Address":"芙蓉区解放西路136号蓝色地标106号","Lat":28.195121749318545,"Lon":112.9775357190946,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"李叁面馆(大桥四区店)","Category":"粉面","Address":"雨花区雨花区大桥4区1栋(十字路口)","Lat":28.17556615478573,"Lon":113.03855210625198,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"大碗先生（五江天街店）","Category":"湘菜","Address":"曲塘路48号五江天街北区一期1栋2层1-202号","Lat":28.14971333566145,"Lon":113.02041562886727,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"盟重烧烤（东瓜山创始店）","Category":"烧烤","Address":"裕南街59号","Lat":28.176564121521963,"Lon":112.9669692653345,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"盟重烧烤（高正街店）","Category":"烧烤","Address":"高正街77号","Lat":28.189142968894735,"Lon":112.97553356084728,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"矮子粉店1985·长沙米粉（金茂悦店）","Category":"粉面","Address":"天顶街道金茂悦三期大门左侧9-112商铺","Lat":28.197900172033286,"Lon":112.88681632384205,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"甘长顺（树木岭形象店）","Category":"粉面","Address":"圭塘路103号","Lat":28.14598404157613,"Lon":113.02094706364517,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"甘长顺（五一广场店）","Category":"粉面","Address":"五一广场西北角一楼","Lat":28.19918737591118,"Lon":112.96967519591365,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"甘长顺（远大一路店）","Category":"粉面","Address":"远大一路218号","Lat":28.201176157756045,"Lon":113.01171033997908,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"山姆超市","Category":"未分类","Address":null,"Lat":28.2289870274739,"Lon":112.95712947290929,"Approximate":false,"Rating":"夯","HasEaten":null},{"Name":"虎三韩食料理店","Category":"未分类","Address":null,"Lat":28.24427110081038,"Lon":112.94835864943059,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"牛家酒场(步步高梅溪新天地店)","Category":"烧烤","Address":"岳麓区枫林三路1099号步步高·梅溪新天地L2层","Lat":28.20180191207156,"Lon":112.8568224323228,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"牛家酒场(德思勤店)","Category":"烧烤","Address":"雨花区湘府中路18号德思勤四季汇5层","Lat":28.115095906798608,"Lon":113.00824895379836,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"牛家酒场(河西长沙王府井FAMILY PARK购物中心店)","Category":"烧烤","Address":"岳麓区金星中路383号长沙王府井FAMILY PARK购物中心河西店6F层","Lat":28.222294737382022,"Lon":112.9280111879017,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"牛家酒场(环宇城店)","Category":"烧烤","Address":"天心区中意二路111号环宇城L4层","Lat":28.07136306362655,"Lon":112.98016277857673,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"牛家酒场(金茂览秀城店)","Category":"烧烤","Address":"岳麓区环湖路1177号金茂览秀城F3层","Lat":28.20000645610897,"Lon":112.89787439986227,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"牛家酒场(锦绣中环大厦店)","Category":"烧烤","Address":"天心区五一大道635号7mallL3层","Lat":28.1983322399612,"Lon":112.97016703188264,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"牛家酒场(星城天地店)","Category":"烧烤","Address":"雨花区井湾子街道湘府东路二段398号步步高星城购物中心L2层2057","Lat":28.11538198577818,"Lon":113.01123595254961,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"牛家酒场(星沙天虹购物中心店)","Category":"烧烤","Address":"长沙县开元东路与东三路交汇处东南角星沙天虹购物中心L5层","Lat":28.247808700308177,"Lon":113.09275218808827,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"牛家酒场(永旺梦乐城店)","Category":"烧烤","Address":"长沙县凉塘路永旺梦乐城4楼408牛家酒场","Lat":28.247406501962676,"Lon":113.12917776962689,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"牛家酒场(月亮岛天街店)","Category":"烧烤","Address":"望城区银杉路1669号龙湖月亮岛天街5楼","Lat":28.29084380255264,"Lon":112.92298337447627,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"牛家酒场(运达汇店)","Category":"烧烤","Address":"雨花区运达汇地铁商业街负一层LG1-51D","Lat":28.173478844550292,"Lon":113.03621048411306,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"牛家酒场(长沙万达广场店)","Category":"烧烤","Address":"开福区湘江中路589号万达广场4F层","Lat":28.201529908409885,"Lon":112.96574421431052,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"麓山下咖啡馆(中山亭店)","Category":"咖啡茶饮","Address":"开福区望麓园街道又一村巷88号铂宫大厦201","Lat":28.20551883711438,"Lon":112.97296903660816,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"陈记捆鸡","Category":"小吃","Address":"望城区莲湖路与新塘路交叉口南100米","Lat":28.34672410888278,"Lon":112.82027456141336,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"陈记捆鸡(北一路店)","Category":"小吃","Address":"开福区芙蓉北路街道金泰路199号湘江世纪城贯江苑市政道路层-10041","Lat":28.272108465731396,"Lon":112.97092857813563,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"陈记捆鸡(步步高·星城天地)","Category":"小吃","Address":"雨花区湘府东路二段398号步步高·星城天地B1层","Lat":28.114505866070104,"Lon":113.01225430194408,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"陈记捆鸡(福城店)","Category":"小吃","Address":"开福区福城社区3栋一单元一楼门面","Lat":28.251197364887567,"Lon":112.9802201475347,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"陈记捆鸡(金星北路店)","Category":"小吃","Address":"岳麓区茶子山路19号北京御园二期","Lat":28.244599409623984,"Lon":112.92728659843233,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"陈记捆鸡(望城步行街店)","Category":"小吃","Address":"望城区高塘岭街道文源中路47号(高塘村十三组)","Lat":28.35922333004407,"Lon":112.8132520553118,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"阳记紫苏桃子(太平街店)","Category":"小吃","Address":"天心区太平街五一路牌坊117号","Lat":28.19850206361526,"Lon":112.96643025340627,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"阳记紫苏桃子(阳金直营总店)","Category":"小吃","Address":"天心区登仁桥巷7号(南门口地铁站1号口步行120米)","Lat":28.187794991041365,"Lon":112.9693774919427,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"胡记炸炸炸","Category":"小吃","Address":"岳麓区岳麓街道阳光路阳光100凤凰社(建设中)","Lat":28.14658231599277,"Lon":112.93889946866125,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"胡记炸炸炸","Category":"小吃","Address":"天心区楠竹家园北2门旁","Lat":28.146717661665356,"Lon":112.96315975366696,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"胡记炸炸炸(藩城堤店)","Category":"小吃","Address":"开福区藩城堤51号(五一广场地铁站8号口步行270米)","Lat":28.20031865473344,"Lon":112.96814354703744,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"胡记炸炸炸(经贸街店)","Category":"小吃","Address":"天心区经贸街23号","Lat":28.163889484723388,"Lon":112.96644596630624,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"胡记炸炸炸(井塘路店)","Category":"小吃","Address":"雨花区景塘家园C区","Lat":28.14446810629679,"Lon":113.01851927110498,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"胡记炸炸炸(明昇壹城店)","Category":"小吃","Address":"雨花区黎托街道潭白北路与湘天路交叉口东长房东旭国际一期北门西","Lat":28.163797467145635,"Lon":113.04632852474388,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"胡记炸炸炸(太阳山小区A区店)","Category":"小吃","Address":"开福区太阳山小区A区","Lat":28.34187293235329,"Lon":112.96364961813855,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"胡记炸炸炸(万科城店)","Category":"小吃","Address":"开福区万科城二期B西区北门西160米","Lat":28.2507781140682,"Lon":112.99083464672688,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"胡记炸炸炸(望城店)","Category":"小吃","Address":"望城区高塘岭街道郭亮北路235-5号","Lat":28.374618679364602,"Lon":112.81042494415074,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"胡记炸炸炸(永旺梦乐城长沙湘江新区店)","Category":"小吃","Address":"望城区湘江新区金山桥街道雷锋大道1118号永旺梦乐城(湘江新区店)","Lat":28.274196248273125,"Lon":112.8741586352953,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"胡记炸炸炸(左栗路店)","Category":"小吃","Address":"岳麓区左栗路与智义路交叉口东北200米","Lat":28.151505360929583,"Lon":112.90298994731296,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"天马牛肉饼(总店)","Category":"早餐","Address":"天心区太平街新胜村3号(从北门进太平街10米左边巷子里)","Lat":28.198434840427822,"Lon":112.96651598253453,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"李叁面馆(妇幼店)","Category":"粉面","Address":"开福区蔡锷北路与彭家井巷交叉口西南20米","Lat":28.213566263555055,"Lon":112.97611459009642,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"李叁面馆(高桥店)","Category":"粉面","Address":"雨花区桂友路高桥小区B-2栋","Lat":28.169404530802534,"Lon":113.02103135545191,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"李叁面馆(金桂店)","Category":"粉面","Address":"雨花区万芙中路15号","Lat":28.099272176181195,"Lon":112.99440764650632,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"李叁面馆(梅溪湖东店)","Category":"粉面","Address":"岳麓区大坝咀小区18栋101门面","Lat":28.20480769225519,"Lon":112.90485796994356,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"李叁面馆(梅溪湖西店)","Category":"粉面","Address":"岳麓区看云路367号万科城市花园6栋","Lat":28.197510397122507,"Lon":112.8692918000495,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"李叁面馆(五江天街店)","Category":"粉面","Address":"雨花区雨花亭街道曲塘路48号五江天街北二期1栋101","Lat":28.15132798970387,"Lon":113.02222764546883,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"李叁面馆(总店)","Category":"粉面","Address":"开福区万家丽北路洪西小区24栋4单元1楼门面","Lat":28.24754873673981,"Lon":113.0339535053787,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"温莎KTV（五一广场店）","Category":"KTV","Address":"芙蓉区黄兴中路168号新大新大厦2楼","Lat":28.201110846273743,"Lon":112.97108673975019,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"纯K（华远·FACEMORE店）","Category":"KTV","Address":"天心区湘江中路 FACEMORE 1层","Lat":28.19307341052709,"Lon":112.96584157798671,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"星聚会KTV（长沙印象汇店）","Category":"KTV","Address":"天心区黄兴南路445号3楼302-4号","Lat":28.194717292807933,"Lon":112.97010652228091,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"K歌王量贩KTV（德思勤城市广场店）","Category":"KTV","Address":"雨花区湘府中路18号德思勤城市广场四季汇 L3-15","Lat":28.115440660567874,"Lon":113.006350940749,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"欢唱迪KTV（星沙店）","Category":"KTV","Address":"长沙县星沙二区43栋344号","Lat":28.235930930541745,"Lon":113.07439950097536,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"空境·派对KTV（长沙万象城店）","Category":"KTV","Address":"岳麓区桐梓坡路11号长沙万象城6层","Lat":28.221817547470053,"Lon":112.94715615706153,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"魅KTV（长沙河西王府井店）","Category":"KTV","Address":"岳麓区金星中路383号河西王府井5层","Lat":28.222397930534555,"Lon":112.92784644894094,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"唱吧麦颂KTV（步步高广场店）","Category":"KTV","Address":"岳麓区金星中路428号步步高大厦8层8003号A","Lat":28.221957130493095,"Lon":112.93014660408102,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"星聚会KTV（观沙岭招商花园城店）","Category":"KTV","Address":"岳麓区茶子山路与观沙路交汇处西北角 L3-33B","Lat":28.24594924042471,"Lon":112.93570127375027,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"星聚会KTV（长沙银盆岭万达广场店）","Category":"KTV","Address":"岳麓区岳麓大道57号银盆岭万达广场5层5F-B","Lat":28.22689181308226,"Lon":112.94952465800277,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"IFS国金购物中心","Category":"商场","Address":"芙蓉区解放西路188号","Lat":28.195890010911647,"Lon":112.97317909396074,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"长沙万象城","Category":"商场","Address":"岳麓区桐梓坡路11号","Lat":28.221850650033613,"Lon":112.9455481585742,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"长沙荟聚","Category":"商场","Address":"岳麓区洋湖路253号","Lat":28.121150034158298,"Lon":112.93231367115098,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"德思勤城市广场购物中心","Category":"商场","Address":"雨花区湘府中路18号","Lat":28.11505368394112,"Lon":113.00566850023637,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"吾悦广场（长沙松雅湖店）","Category":"商场","Address":"长沙县望仙东路489号","Lat":28.25618297501077,"Lon":113.09544925545167,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"长沙北辰荟","Category":"商场","Address":"开福区湘江大道1500号","Lat":28.241150968515715,"Lon":112.9736897243003,"Approximate":false,"Rating":null,"HasEaten":null},{"Name":"万家丽国际购物广场","Category":"商场","Address":"芙蓉区万家丽中路99号","Lat":28.19304402294434,"Lon":113.02658424788794,"Approximate":false,"Rating":null,"HasEaten":null}],"references":[{"Name":"阿弥岭","Category":"地铁","Lat":28.1779811,"Lon":113.0024956,"Address":"3 号线"},{"Name":"白鸽咀","Category":"地铁","Lat":28.2214405,"Lon":112.9285378,"Address":"6 号线"},{"Name":"白茅铺","Category":"地铁","Lat":28.253626,"Lon":113.0428634,"Address":"5 号线"},{"Name":"板塘冲","Category":"地铁","Lat":28.119343,"Lon":113.0333712,"Address":"5 号线"},{"Name":"北辰三角洲","Category":"地铁","Lat":28.2395838,"Lon":112.9784724,"Address":"1 号线"},{"Name":"碧沙湖","Category":"地铁","Lat":28.1677259,"Lon":112.9622913,"Address":"4 号线"},{"Name":"曹家坪","Category":"地铁","Lat":28.2070138,"Lon":113.1647999,"Address":"6 号线"},{"Name":"漕龙桥","Category":"地铁","Lat":28.1846951,"Lon":112.8470278,"Address":"2 号线"},{"Name":"茶子山","Category":"地铁","Lat":28.2456681,"Lon":112.9539169,"Address":"4 号线"},{"Name":"朝阳村","Category":"地铁","Lat":28.1889471,"Lon":113.0045881,"Address":"3 号线、6 号线"},{"Name":"车田湾","Category":"地铁","Lat":28.2148303,"Lon":112.8238281,"Address":"2 号线"},{"Name":"赤岗岭","Category":"地铁","Lat":28.1633247,"Lon":112.9996443,"Address":"4 号线"},{"Name":"船形山","Category":"地铁","Lat":27.9831131,"Lon":112.9440285,"Address":"3 号线"},{"Name":"大路村","Category":"地铁","Lat":28.205989,"Lon":113.2004366,"Address":"6 号线"},{"Name":"大塘","Category":"地铁","Lat":28.1345005,"Lon":113.0304375,"Address":"5 号线"},{"Name":"大托","Category":"地铁","Lat":28.0857822,"Lon":112.9836561,"Address":"1 号线"},{"Name":"大王山","Category":"地铁","Lat":28.0921382,"Lon":112.9116045,"Address":"3 号线"},{"Name":"东湖","Category":"地铁","Lat":28.1966537,"Lon":113.0893758,"Address":"6 号线"},{"Name":"东塘","Category":"地铁","Lat":28.1728741,"Lon":112.9880424,"Address":"3 号线"},{"Name":"杜花路","Category":"地铁","Lat":28.1494915,"Lon":113.0505696,"Address":"2 号线"},{"Name":"杜家坪","Category":"地铁","Lat":28.1455385,"Lon":113.0877448,"Address":"4 号线"},{"Name":"鹅羊山","Category":"地铁","Lat":28.3137639,"Lon":112.9541922,"Address":"1 号线"},{"Name":"芙蓉广场","Category":"地铁","Lat":28.1984777,"Lon":112.978461,"Address":"2 号线"},{"Name":"芙蓉区政府","Category":"地铁","Lat":28.187971,"Lon":113.0241032,"Address":"5 号线、6 号线"},{"Name":"福元大桥西","Category":"地铁","Lat":28.2567792,"Lon":112.9531633,"Address":"4 号线"},{"Name":"阜埠河","Category":"地铁","Lat":28.1694418,"Lon":112.9422455,"Address":"3 号线、4 号线"},{"Name":"高桥北","Category":"地铁","Lat":28.1793852,"Lon":113.024295,"Address":"5 号线"},{"Name":"高桥南","Category":"地铁","Lat":28.1703164,"Lon":113.0239108,"Address":"5 号线"},{"Name":"观沙岭","Category":"地铁","Lat":28.234049,"Lon":112.947009,"Address":"4 号线"},{"Name":"罐子岭","Category":"地铁","Lat":28.2980689,"Lon":112.9177949,"Address":"4 号线"},{"Name":"光达","Category":"地铁","Lat":28.1514162,"Lon":113.0791043,"Address":"2 号线、4 号线"},{"Name":"广生","Category":"地铁","Lat":28.2480658,"Lon":113.1297411,"Address":"3 号线"},{"Name":"圭塘","Category":"地铁","Lat":28.1603825,"Lon":113.0243431,"Address":"4 号线、5 号线"},{"Name":"桂花公园","Category":"地铁","Lat":28.1738777,"Lon":112.9958464,"Address":"3 号线"},{"Name":"桂花坪","Category":"地铁","Lat":28.1024671,"Lon":112.9828299,"Address":"1 号线"},{"Name":"汉王陵公园","Category":"地铁","Lat":28.2708427,"Lon":112.9422662,"Address":"4 号线"},{"Name":"和馨园","Category":"地铁","Lat":28.2180664,"Lon":112.8559218,"Address":"6 号线"},{"Name":"红桥","Category":"地铁","Lat":28.0627183,"Lon":112.9043217,"Address":"3 号线"},{"Name":"侯家塘","Category":"地铁","Lat":28.1773359,"Lon":112.9766317,"Address":"1 号线、3 号线"},{"Name":"湖南大学","Category":"地铁","Lat":28.1835503,"Lon":112.9412557,"Address":"4 号线"},{"Name":"湖南工商大学","Category":"地铁","Lat":28.2228963,"Lon":112.9168671,"Address":"6 号线"},{"Name":"湖南师大","Category":"地铁","Lat":28.1893927,"Lon":112.9426269,"Address":"4 号线"},{"Name":"花桥","Category":"地铁","Lat":28.1879439,"Lon":113.0427612,"Address":"6 号线"},{"Name":"华龙","Category":"地铁","Lat":28.2342789,"Lon":112.8193128,"Address":"2 号线"},{"Name":"黄花机场T1T2","Category":"地铁","Lat":28.1942461,"Lon":113.2132059,"Address":"6 号线"},{"Name":"黄家湾","Category":"地铁","Lat":27.993707,"Lon":112.9417125,"Address":"3 号线"},{"Name":"黄土岭","Category":"地铁","Lat":28.1634883,"Lon":112.980061,"Address":"1 号线、4 号线"},{"Name":"黄兴广场","Category":"地铁","Lat":28.1924397,"Lon":112.9708803,"Address":"1 号线"},{"Name":"火炬村","Category":"地铁","Lat":28.2116129,"Lon":113.0253706,"Address":"5 号线"},{"Name":"涧塘","Category":"地铁","Lat":28.2221791,"Lon":112.9053407,"Address":"6 号线"},{"Name":"金盆丘","Category":"地铁","Lat":28.3424304,"Lon":112.9278076,"Address":"1 号线"},{"Name":"金霞","Category":"地铁","Lat":28.3291289,"Lon":112.9406358,"Address":"1 号线"},{"Name":"金星路","Category":"地铁","Lat":28.2095881,"Lon":112.9232558,"Address":"2 号线"},{"Name":"锦泰广场","Category":"地铁","Lat":28.1951998,"Lon":113.0118419,"Address":"2 号线"},{"Name":"橘子洲","Category":"地铁","Lat":28.1986865,"Lon":112.9568244,"Address":"2 号线"},{"Name":"开福区政府","Category":"地铁","Lat":28.2653114,"Lon":112.9798253,"Address":"1 号线"},{"Name":"开福寺","Category":"地铁","Lat":28.226096,"Lon":112.9739542,"Address":"1 号线"},{"Name":"烈士公园东","Category":"地铁","Lat":28.211381,"Lon":113.0031878,"Address":"3 号线"},{"Name":"烈士公园南","Category":"地铁","Lat":28.2082154,"Lon":112.9857862,"Address":"6 号线"},{"Name":"灵官渡","Category":"地铁","Lat":28.1826075,"Lon":112.9650494,"Address":"3 号线"},{"Name":"六沟垅","Category":"地铁","Lat":28.2236529,"Lon":112.9490798,"Address":"4 号线、6 号线"},{"Name":"龙峰","Category":"地铁","Lat":28.2059187,"Lon":113.1808686,"Address":"6 号线"},{"Name":"龙虎岭","Category":"地铁","Lat":28.2423496,"Lon":112.8196286,"Address":"2 号线"},{"Name":"龙华","Category":"地铁","Lat":28.2037936,"Lon":113.1227241,"Address":"6 号线"},{"Name":"隆平水稻博物馆","Category":"地铁","Lat":28.1938109,"Lon":113.0534982,"Address":"6 号线"},{"Name":"麓谷公园","Category":"地铁","Lat":28.2217794,"Lon":112.8903837,"Address":"6 号线"},{"Name":"麓谷体育公园","Category":"地铁","Lat":28.2235234,"Lon":112.8769706,"Address":"6 号线"},{"Name":"麓云路","Category":"地铁","Lat":28.1943573,"Lon":112.8867978,"Address":"2 号线"},{"Name":"螺丝塘","Category":"地铁","Lat":28.2485162,"Lon":113.1173018,"Address":"3 号线"},{"Name":"马厂","Category":"地铁","Lat":28.2542879,"Lon":112.9832432,"Address":"1 号线"},{"Name":"马栏山","Category":"地铁","Lat":28.2351498,"Lon":113.0349447,"Address":"5 号线"},{"Name":"马王堆","Category":"地铁","Lat":28.203198,"Lon":113.0250894,"Address":"5 号线"},{"Name":"毛竹塘","Category":"地铁","Lat":28.098291,"Lon":113.030725,"Address":"5 号线"},{"Name":"梅溪湖东","Category":"地铁","Lat":28.2049365,"Lon":112.9026206,"Address":"2 号线"},{"Name":"梅溪湖西","Category":"地铁","Lat":28.1892998,"Lon":112.8763559,"Address":"2 号线"},{"Name":"莫家洲","Category":"地铁","Lat":28.187232,"Lon":112.8364689,"Address":"2 号线"},{"Name":"木马塅","Category":"地铁","Lat":28.1999267,"Lon":113.2061922,"Address":"6 号线"},{"Name":"木桥","Category":"地铁","Lat":28.1520031,"Lon":113.0250844,"Address":"5 号线"},{"Name":"南湖路","Category":"地铁","Lat":28.1692175,"Lon":112.9801535,"Address":"1 号线"},{"Name":"南门口","Category":"地铁","Lat":28.1865255,"Lon":112.970739,"Address":"1 号线"},{"Name":"农科院农大","Category":"地铁","Lat":28.1945562,"Lon":113.0732769,"Address":"6 号线"},{"Name":"培元桥","Category":"地铁","Lat":28.209286,"Lon":112.9710187,"Address":"1 号线"},{"Name":"平阳","Category":"地铁","Lat":28.1549416,"Lon":113.0512382,"Address":"4 号线"},{"Name":"坪塘","Category":"地铁","Lat":28.0469241,"Lon":112.9073071,"Address":"3 号线"},{"Name":"桥头铺","Category":"地铁","Lat":28.1930347,"Lon":112.8243856,"Address":"2 号线"},{"Name":"人民东路","Category":"地铁","Lat":28.1877861,"Lon":113.0326423,"Address":"2 号线、6 号线"},{"Name":"沙湾公园","Category":"地铁","Lat":28.160804,"Lon":113.0388956,"Address":"2 号线、4 号线"},{"Name":"砂子塘","Category":"地铁","Lat":28.1658956,"Lon":112.9876655,"Address":"4 号线"},{"Name":"山塘","Category":"地铁","Lat":28.1021885,"Lon":112.9204207,"Address":"3 号线"},{"Name":"尚双塘","Category":"地铁","Lat":28.0652715,"Lon":112.986772,"Address":"1 号线"},{"Name":"韶光","Category":"地铁","Lat":28.199037,"Lon":113.1001248,"Address":"6 号线"},{"Name":"省政府","Category":"地铁","Lat":28.1144909,"Lon":112.9820085,"Address":"1 号线"},{"Name":"树木岭","Category":"地铁","Lat":28.1593804,"Lon":113.0150666,"Address":"4 号线"},{"Name":"双湖","Category":"地铁","Lat":28.0298724,"Lon":112.9225253,"Address":"3 号线"},{"Name":"水渡河","Category":"地铁","Lat":28.2828392,"Lon":113.0580899,"Address":"5 号线"},{"Name":"丝茅冲","Category":"地铁","Lat":28.2270079,"Lon":113.0013424,"Address":"3 号线"},{"Name":"四方坪","Category":"地铁","Lat":28.2340452,"Lon":113.0013032,"Address":"3 号线"},{"Name":"松雅湖(南)","Category":"地铁","Lat":28.2485467,"Lon":113.0979099,"Address":"3 号线"},{"Name":"宿龙桥","Category":"地铁","Lat":28.2821747,"Lon":112.9729911,"Address":"1 号线"},{"Name":"粟塘","Category":"地铁","Lat":28.1608028,"Lon":113.0462315,"Address":"4 号线"},{"Name":"檀木桥","Category":"地铁","Lat":28.2048153,"Lon":113.1452658,"Address":"6 号线"},{"Name":"铁道学院","Category":"地铁","Lat":28.1395874,"Lon":112.981868,"Address":"1 号线"},{"Name":"桐溪","Category":"地铁","Lat":28.0789396,"Lon":112.9028451,"Address":"3 号线"},{"Name":"涂家冲","Category":"地铁","Lat":28.1562403,"Lon":112.9794234,"Address":"1 号线"},{"Name":"土桥","Category":"地铁","Lat":28.2669776,"Lon":113.0501499,"Address":"5 号线"},{"Name":"万家丽广场","Category":"地铁","Lat":28.1948372,"Lon":113.0248335,"Address":"2 号线、5 号线"},{"Name":"望城坡","Category":"地铁","Lat":28.2110331,"Lon":112.9087592,"Address":"2 号线"},{"Name":"望月湖","Category":"地铁","Lat":28.2100983,"Lon":112.9501587,"Address":"4 号线"},{"Name":"文昌阁","Category":"地铁","Lat":28.2169806,"Lon":112.9728418,"Address":"1 号线、6 号线"},{"Name":"文化艺术中心","Category":"地铁","Lat":28.2002531,"Lon":112.8950867,"Address":"2 号线"},{"Name":"五一广场","Category":"地铁","Lat":28.1987413,"Lon":112.9707652,"Address":"1 号线、2 号线"},{"Name":"西湖公园","Category":"地铁","Lat":28.2058044,"Lon":112.9361026,"Address":"2 号线"},{"Name":"湘江新城","Category":"地铁","Lat":28.2851851,"Lon":112.9281787,"Address":"4 号线"},{"Name":"湘江中路","Category":"地铁","Lat":28.1986933,"Lon":112.963898,"Address":"2 号线"},{"Name":"湘龙","Category":"地铁","Lat":28.2488159,"Lon":113.0552179,"Address":"3 号线"},{"Name":"湘潭北站","Category":"地铁","Lat":27.9668585,"Lon":112.9379436,"Address":"3 号线"},{"Name":"湘雅三医院","Category":"地铁","Lat":28.221718,"Lon":112.9376317,"Address":"6 号线"},{"Name":"湘雅医院","Category":"地铁","Lat":28.217001,"Lon":112.9823537,"Address":"6 号线"},{"Name":"象鼻窝","Category":"地铁","Lat":28.1763101,"Lon":112.8477802,"Address":"6 号线"},{"Name":"谢家桥","Category":"地铁","Lat":28.1762149,"Lon":112.8304,"Address":"6 号线"},{"Name":"星沙","Category":"地铁","Lat":28.2487189,"Lon":113.0801176,"Address":"3 号线"},{"Name":"星沙文体中心","Category":"地铁","Lat":28.2485127,"Lon":113.1056038,"Address":"3 号线"},{"Name":"秀峰山","Category":"地铁","Lat":28.2988315,"Lon":112.9633448,"Address":"1 号线"},{"Name":"鸭子铺","Category":"地铁","Lat":28.2283275,"Lon":113.0301379,"Address":"5 号线"},{"Name":"雅雀湖","Category":"地铁","Lat":28.2406262,"Lon":113.0081524,"Address":"3 号线"},{"Name":"阳光","Category":"地铁","Lat":28.1454725,"Lon":112.9316308,"Address":"3 号线"},{"Name":"洋湖湿地","Category":"地铁","Lat":28.1182626,"Lon":112.9334473,"Address":"3 号线"},{"Name":"洋湖新城","Category":"地铁","Lat":28.1319375,"Lon":112.9396691,"Address":"3 号线"},{"Name":"窑岭湘雅二医院","Category":"地铁","Lat":28.189198,"Lon":112.990716,"Address":"6 号线"},{"Name":"一师范西校区","Category":"地铁","Lat":28.1963565,"Lon":112.8593037,"Address":"6 号线"},{"Name":"迎宾路口","Category":"地铁","Lat":28.198214,"Lon":112.986225,"Address":"2 号线、6 号线"},{"Name":"溁湾镇","Category":"地铁","Lat":28.2012637,"Lon":112.9464111,"Address":"2 号线、4 号线"},{"Name":"友谊路","Category":"地铁","Lat":28.1274825,"Lon":112.981369,"Address":"1 号线"},{"Name":"雨花区政府","Category":"地铁","Lat":28.1407912,"Lon":113.0292641,"Address":"5 号线"},{"Name":"袁家岭","Category":"地铁","Lat":28.1978684,"Lon":112.9955567,"Address":"2 号线"},{"Name":"月湖公园北","Category":"地铁","Lat":28.2453084,"Lon":113.0353199,"Address":"3 号线、5 号线"},{"Name":"月亮岛西","Category":"地铁","Lat":28.2906339,"Lon":112.9240973,"Address":"4 号线"},{"Name":"长丰","Category":"地铁","Lat":28.2245107,"Lon":112.8663498,"Address":"6 号线"},{"Name":"长庆","Category":"地铁","Lat":28.2046888,"Lon":112.8572608,"Address":"6 号线"},{"Name":"长沙大道","Category":"地铁","Lat":28.1713495,"Lon":113.0387446,"Address":"2 号线"},{"Name":"长沙大学","Category":"地铁","Lat":28.2440254,"Lon":113.0246217,"Address":"3 号线"},{"Name":"长沙火车南站","Category":"地铁","Lat":28.1500018,"Lon":113.058126,"Address":"2 号线、4 号线"},{"Name":"长沙火车站","Category":"地铁","Lat":28.1973495,"Lon":113.0053853,"Address":"2 号线、3 号线"},{"Name":"真人桥","Category":"地铁","Lat":28.2241255,"Lon":112.8191055,"Address":"2 号线"},{"Name":"中南大学","Category":"地铁","Lat":28.1578316,"Lon":112.9323562,"Address":"3 号线"},{"Name":"中塘","Category":"地铁","Lat":28.1846056,"Lon":112.8573123,"Address":"2 号线、6 号线"},{"Name":"中信广场","Category":"地铁","Lat":28.0770639,"Lon":112.9840289,"Address":"1 号线"},{"Name":"注田洲","Category":"地铁","Lat":28.2049958,"Lon":112.82411,"Address":"2 号线"},{"Name":"爱晚亭","Category":"风景","Lat":28.1839536,"Lon":112.9321311,"Address":""},{"Name":"岳麓书院","Category":"风景","Lat":28.183909,"Lon":112.9353659,"Address":""},{"Name":"橘子洲头","Category":"风景","Lat":28.1903018,"Lon":112.9565771,"Address":""},{"Name":"岳麓山","Category":"风景","Lat":28.1871197,"Lon":112.9306734,"Address":""},{"Name":"橘子洲","Category":"风景","Lat":28.1999748,"Lon":112.9575854,"Address":""},{"Name":"天心阁","Category":"风景","Lat":28.1881751,"Lon":112.976306,"Address":""},{"Name":"李自健美术馆","Category":"风景","Lat":28.1224528,"Lon":112.9438112,"Address":""},{"Name":"湖南烈士公园","Category":"风景","Lat":28.2129004,"Lon":112.9908228,"Address":""},{"Name":"杜甫江阁","Category":"风景","Lat":28.1878981,"Lon":112.9631126,"Address":""},{"Name":"湖南博物院","Category":"风景","Lat":28.2152641,"Lon":112.9879003,"Address":""},{"Name":"梅溪湖国际文化艺术中心","Category":"风景","Lat":28.2001068,"Lon":112.9009908,"Address":""},{"Name":"马王堆汉墓遗址","Category":"风景","Lat":28.2087691,"Lon":113.0217118,"Address":""},{"Name":"古开福寺","Category":"风景","Lat":28.2278675,"Lon":112.9727938,"Address":""},{"Name":"湖南省植物园","Category":"风景","Lat":28.1062812,"Lon":113.0264538,"Address":""},{"Name":"长沙世界之窗","Category":"风景","Lat":28.2399264,"Lon":113.0490828,"Address":""},{"Name":"靖港古镇","Category":"风景","Lat":28.4595268,"Lon":112.7897121,"Address":""},{"Name":"谢子龙影像艺术馆","Category":"风景","Lat":28.12128,"Lon":112.94166,"Address":""}]};
+</script><script>
+window.DAYMARK_MAP_ICONS = {"湘菜家常":{"color":"#9A512F","path":"M 3 11 L 21 11 C 20 16 17 19 12 19 C 7 19 4 16 3 11 Z M 8 21 L 16 21 M 9 8 C 7 6 11 5 9 3 M 14 8 C 12 6 16 5 14 3"},"地方风味":{"color":"#A93743","path":"M 18 7 C 22 10 18 16 13 19 C 9 21 5 21 3 20 C 7 18 9 15 10 11 C 11 7 15 5 18 7 Z M 17 6 C 17 4 18 3 20 3"},"火锅串串":{"color":"#AE3E32","path":"M 5 10 L 19 10 L 18 18 C 18 19 17 20 16 20 L 8 20 C 7 20 6 19 6 18 Z M 3 12 L 5 12 M 19 12 L 21 12 M 4 10 L 20 10 M 9 7 C 7 5 11 4 9 2 M 14 7 C 12 5 16 4 14 2"},"烧烤夜宵":{"color":"#A54B20","path":"M 12 3 C 13 8 18 8 18 14 C 18 18 16 21 12 21 C 8 21 5 18 5 14 C 5 11 7 9 8 8 C 8 11 9 12 10 12 C 11 10 13 7 12 3 Z M 10 20 C 8 17 11 15 12 14 C 14 16 15 18 14 20"},"小吃卤味":{"color":"#806016","path":"M 4 20 L 7 17 M 17 7 L 20 4 M 9 19 L 5 15 L 8 12 L 12 16 Z M 12 16 L 8 12 L 11 9 L 15 13 Z M 15 13 L 11 9 L 14 6 L 18 10 Z"},"早餐粉面":{"color":"#4F5397","path":"M 3 12 L 21 12 C 20 17 17 20 12 20 C 7 20 4 17 3 12 Z M 7 9 L 19 3 M 11 9 L 21 6 M 9 22 L 15 22"},"甜品饮品":{"color":"#35754D","path":"M 6 10 L 19 10 L 17 21 L 8 21 Z M 5 10 L 20 10 M 12 9 L 14 4 L 18 3 M 10 14 L 10 14.15 M 14 16 L 14 16.15 M 11 18 L 11 18.15"},"异国料理":{"color":"#376987","path":"M 5 4 L 5 9 C 5 11 6 12 8 12 C 10 12 11 11 11 9 L 11 4 M 8 4 L 8 21 M 18 21 L 18 4 C 15 6 14 9 14 13 L 18 13"},"漂亮饭":{"color":"#96386C","path":"M 18 15 C 17 19 14 21 10 21 C 5 21 2 17 2 13 C 2 9 5 6 9 5 M 14 13 C 14 15 12 17 10 17 C 8 17 6 15 6 13 C 6 11 8 9 10 9 M 17 3 C 17 6 18 8 22 8 C 18 8 17 9 17 13 C 17 9 16 8 12 8 C 16 8 17 6 17 3 Z"},"风景":{"color":"#456E50","path":"M 3 19 L 10 8 L 14 14 L 17 10 L 22 19 Z M 8 11 L 10 13 L 12 11 M 18 5 C 18 6 17 7 16 7 C 15 7 14 6 14 5 C 14 4 15 3 16 3 C 17 3 18 4 18 5 Z"},"KTV":{"color":"#7043A7","path":"M 12 15 L 12 15 C 10 14 10 11 11 9 L 14 5 C 16 2 21 5 20 8 L 17 13 C 16 15 14 16 12 15 Z M 12 15 L 8 21 L 5 19 L 10 13 M 14 6 L 19 9"},"商场":{"color":"#176A76","path":"M 5 8 L 19 8 L 20 21 L 4 21 Z M 9 10 L 9 6 C 9 2 15 2 15 6 L 15 10"},"地铁":{"color":"#205B92","path":"M 8 3 L 16 3 C 19 3 20 5 20 7 L 20 15 C 20 17 19 18 17 18 L 7 18 C 5 18 4 17 4 15 L 4 7 C 4 5 5 3 8 3 Z M 4 11 L 20 11 M 12 4 L 12 11 M 8 15 L 8 15.15 M 16 15 L 16 15.15 M 8 18 L 6 21 M 16 18 L 18 21"},"其他":{"color":"#526272","path":"M 4 4 L 12 4 L 21 13 L 13 21 L 4 12 Z M 8 8 L 8 8.15"}};
+</script><script>
+const { places, references } = window.DAYMARK_MAP_DATA;
+const mapIcons = window.DAYMARK_MAP_ICONS;
+const pinSize = 26;
+const groups = [
+  ['湘菜家常', '湘菜 家常菜 正餐湘菜 湘菜&家常菜 湘菜＆家常菜'],
+  ['地方风味', '川菜 新疆风味 东北菜 粤菜'],
+  ['火锅串串', '火锅 麻辣烫 串串'],
+  ['烧烤夜宵', '烧烤 烤肉 烤鱼 海鲜 夜宵大排档'],
+  ['小吃卤味', '小吃 特色小吃 卤味 酱板鸭'],
+  ['早餐粉面', '早餐 粉面'],
+  ['甜品饮品', '甜品糖水 糖水 咖啡茶饮'],
+  ['异国料理', '西餐 韩餐 韩式料理 寿司 日料 墨西哥风味'],
+  ['风景', '景点 旅游景点'],
+  ['KTV', ''],
+  ['商场', '购物中心'],
+  ['漂亮饭', ''],
+  ['其他', '']
+];
+const group = item => groups.find(([name, aliases]) => name === item.Category || aliases.split(' ').includes(item.Category))?.[0] ?? '其他';
+const located = item => Number.isFinite(item.Lat) && Number.isFinite(item.Lon);
+const pending = item => !located(item) || item.Approximate;
+const byId = id => document.getElementById(id);
+const list = byId('list');
+const search = byId('search');
+const copyToast = byId('copy-toast');
+let copyToastTimer;
+
+async function copyName(name) {
+  let copied = false;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(name);
+      copied = true;
+    }
+  } catch { /* Try the fallback for local files and browsers with clipboard restrictions. */ }
+  if (!copied) {
+    const focused = document.activeElement;
+    const field = document.createElement('textarea');
+    field.className = 'copy-buffer';
+    field.value = name;
+    document.body.append(field);
+    try {
+      field.select();
+      copied = document.execCommand('copy');
+    } catch { /* The browser blocked copying. */ }
+    finally {
+      field.remove();
+      focused?.focus({preventScroll: true});
+    }
+  }
+  clearTimeout(copyToastTimer);
+  copyToast.textContent = copied ? '已复制' : '复制失败，请重试';
+  copyToast.hidden = false;
+  copyToastTimer = setTimeout(() => { copyToast.hidden = true; }, 900);
+}
+
+function enablePlaceCopy(element, item) {
+  element.addEventListener('contextmenu', event => {
+    event.preventDefault();
+    copyName(item.Name);
+  });
+  element.addEventListener('keydown', event => {
+    if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== 'c') return;
+    event.preventDefault();
+    copyName(item.Name);
+  });
+}
+const scenic = references.filter(point => point.Category === '风景');
+const transit = references.filter(point => point.Category === '地铁');
+let filter = '全部';
+let showMetro = false;
+let showScenic = false;
+let showKtv = false;
+let showMalls = false;
+let selected;
+let map;
+const markers = [];
+let labelFrame;
+function refreshLabels() {
+  if (!map || labelFrame) return;
+  labelFrame = requestAnimationFrame(() => {
+    labelFrame = null;
+    const {clientWidth: width, clientHeight: height} = map.getContainer();
+    const occupied = [];
+    const entries = markers.map(marker => {
+      const element = marker.getElement();
+      return {marker, label: element.querySelector('.pin-label'), kind: element.dataset.kind,
+        point: map.project(marker.getLngLat())};
+    });
+    const radius = pinSize / 2 + 1;
+    const pins = entries.map(({point: {x, y}}) => ({left:x-radius, top:y-radius, right:x+radius, bottom:y+radius}));
+    entries.sort((a, b) => priority(a) - priority(b));
+    for (const entry of entries) {
+      const {label, point: {x, y}} = entry;
+      const w = label.offsetWidth, h = label.offsetHeight;
+      const position = x >= 0 && x <= width && y >= 0 && y <= height
+        ? labelPosition(x, y, w, h, width, height, pins, occupied) : null;
+      label.classList.toggle('shown', !!position);
+      if (position) {
+        label.style.setProperty('--label-x', (position.left - x + pinSize / 2) + 'px');
+        label.style.setProperty('--label-y', (position.top - y + pinSize / 2) + 'px');
+        occupied.push(position);
+      }
+    }
+  });
+}
+function labelPosition(x, y, w, h, width, height, pins, occupied) {
+  const gap = pinSize / 2 + 4;
+  for (const [left, top] of [[x+gap,y-h/2],[x-w/2,y-gap-h],[x-w/2,y+gap],[x-gap-w,y-h/2]]) {
+    const box = {left, top, right:left+w, bottom:top+h};
+    if (left < 2 || top < 2 || box.right > width-2 || box.bottom > height-2) continue;
+    const misses = (other, padding) => box.left >= other.right+padding || box.right <= other.left-padding ||
+      box.top >= other.bottom+padding || box.bottom <= other.top-padding;
+    if (pins.every(pin => misses(pin, 1)) && occupied.every(label => misses(label, 3))) return box;
+  }
+  return null;
+}
+function priority(entry) {
+  if (entry.marker.getPopup().isOpen()) return -1;
+  return entry.kind === 'rail' ? 2 : entry.kind === 'scenic' ? 1 : 0;
+}
+if (window.maplibregl) {
+  const container = byId('map');
+  const fallback = container.firstElementChild;
+  try {
+    container.replaceChildren();
+    map = new maplibregl.Map({ container, minZoom: 5, maxZoom: 19, center: [112.978, 28.195],
+      zoom: 11, style: 'https://tiles.openfreemap.org/styles/liberty' });
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left');
+    byId('layers').hidden = false;
+    const status = byId('map-status');
+    map.on('error', () => {
+      if (!map.isStyleLoaded()) {
+        status.textContent = '底图暂时无法加载，仍可查看地点标记和列表。';
+        status.hidden = false;
+      }
+    });
+    map.on('idle', () => { status.hidden = true; refreshLabels(); });
+    map.on('move', refreshLabels);
+    map.on('resize', refreshLabels);
+  } catch (error) {
+    map = null;
+    container.replaceChildren(fallback);
+  }
+}
+function text(tag, value, className) {
+  const element = document.createElement(tag);
+  element.textContent = value;
+  if (className) element.className = className;
+  return element;
+}
+function mapIcon(category) {
+  const symbol = mapIcons[category] ?? mapIcons['其他'];
+  const namespace = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(namespace, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS(namespace, 'path');
+  path.setAttribute('d', symbol.path);
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', 'currentColor');
+  path.setAttribute('stroke-width', '1.9');
+  path.setAttribute('stroke-linecap', 'round');
+  path.setAttribute('stroke-linejoin', 'round');
+  svg.append(path);
+  return svg;
+}
+function details(item) {
+  const visited = item.HasEaten === true ? '☑ 已去过' : item.HasEaten === false ? '× 没去过' : '';
+  return [item.Category, item.Rating, visited, !located(item) ? '未定位' : item.Approximate ? '参考位置' : '', item.Address].filter(Boolean).join(' · ');
+}
+const filterButtons = ['全部', '未定位', '已去过', ...groups.map(([name]) => name)].map(name => {
+  const button = text('button', name, 'chip');
+  button.addEventListener('click', () => {
+    filter = name;
+    selected = null;
+    if (name === '风景') showScenic = true;
+    if (name === 'KTV') showKtv = true;
+    if (name === '商场') showMalls = true;
+    list.scrollTop = 0;
+    render();
+  });
+  byId('filters').append(button);
+  return button;
+});
+function select(item, marker, row) {
+  if (selected) selected.removeAttribute('aria-current');
+  selected = row;
+  if (row) row.setAttribute('aria-current', 'true');
+  if (marker) {
+    map.easeTo({ center: [item.Lon, item.Lat], zoom: Math.max(map.getZoom(), 13) });
+    if (!marker.getPopup().isOpen()) marker.togglePopup();
+    refreshLabels();
+  }
+}
+function markerFor(item, kind) {
+  if (!map || !located(item)) return null;
+  const category = kind === 'rail' ? '地铁' : group(item);
+  const icon = text('div', '', 'map-marker');
+  icon.title = item.Name;
+  icon.dataset.kind = kind;
+  icon.tabIndex = 0;
+  icon.addEventListener('click', () => icon.focus({preventScroll: true}));
+  enablePlaceCopy(icon, item);
+  const pin = text('div', '', 'pin '+kind);
+  pin.classList.toggle('approximate', item.Approximate === true);
+  pin.style.setProperty('--pin', (mapIcons[category] ?? mapIcons['其他']).color);
+  pin.append(mapIcon(category));
+  icon.append(pin, text('span', item.Name, 'pin-label'));
+  const popup = text('div', '');
+  const popupName = text('strong', item.Name, 'popup-name');
+  popupName.tabIndex = 0;
+  popupName.addEventListener('click', () => popupName.focus({preventScroll: true}));
+  enablePlaceCopy(popupName, item);
+  popup.append(popupName, text('div', details(item)));
+  const info = new maplibregl.Popup({ offset: 12 }).setDOMContent(popup);
+  info.on('open', refreshLabels);
+  info.on('close', refreshLabels);
+  const marker = new maplibregl.Marker({ element: icon }).setLngLat([item.Lon, item.Lat])
+    .setPopup(info).addTo(map);
+  markers.push(marker);
+  refreshLabels();
+  return marker;
+}
+function render() {
+  const terms = search.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const visitedOnly = filter === '已去过';
+  const matches = item => (!visitedOnly || item.HasEaten === true)
+    && terms.every(term => [item.Name,item.Category,item.Address,group(item)].join(' ').toLowerCase().includes(term));
+  filterButtons.forEach(button => button.setAttribute('aria-pressed', String(button.textContent === filter)));
+  byId('metro').setAttribute('aria-pressed', String(showMetro));
+  byId('scenic').setAttribute('aria-pressed', String(showScenic));
+  byId('ktv').setAttribute('aria-pressed', String(showKtv));
+  byId('mall').setAttribute('aria-pressed', String(showMalls));
+  const customScenic = places.filter(item => group(item) === '风景' && located(item) && matches(item));
+  const scenicNames = new Set(customScenic.map(item => item.Name));
+  const builtInScenic = scenic.filter(item => !scenicNames.has(item.Name));
+  const filtered = places.filter(item => (filter === '全部' || visitedOnly || (filter === '未定位' ? pending(item) : group(item) === filter)) && matches(item));
+  if (filter === '风景') filtered.push(...builtInScenic.filter(matches));
+  byId('count').textContent = filter + ' · ' + filtered.length + ' 个地点';
+  const fragment = document.createDocumentFragment();
+  const renderMarkers = [];
+  for (const item of filtered) {
+    const isScenic = group(item) === '风景';
+    const isKtv = group(item) === 'KTV';
+    const isMall = group(item) === '商场';
+    let marker;
+    const row = text('button', '', 'place');
+    enablePlaceCopy(row, item);
+    row.append(text('span', item.Name, 'name'), text('span', details(item), 'meta'));
+    row.addEventListener('click', () => select(item, marker, row));
+    renderMarkers.push(() => {
+      if ((isScenic && !showScenic) || (isKtv && !showKtv) || (isMall && !showMalls)) return;
+      marker = markerFor(item, isScenic ? 'scenic' : isKtv ? 'ktv' : isMall ? 'mall' : '');
+      marker?.getElement().addEventListener('click', () => {
+        select(item, null, row);
+        row.scrollIntoView({ block: 'nearest' });
+      });
+    });
+    fragment.append(row);
+  }
+  if (!filtered.length) fragment.append(text('p', '没有符合条件的地点。', 'empty'));
+  list.replaceChildren(fragment);
+  if (!map) return;
+  markers.splice(0).forEach(marker => marker.remove());
+  if (showMetro) transit.forEach(item => markerFor(item, 'rail'));
+  const listed = new Set(filtered);
+  if (showScenic) {
+    if (!visitedOnly && filter !== '风景') builtInScenic.forEach(item => markerFor(item, 'scenic'));
+    customScenic.filter(item => !listed.has(item)).forEach(item => markerFor(item, 'scenic'));
+  }
+  if (showKtv) places.filter(item => group(item) === 'KTV' && !listed.has(item) && matches(item))
+    .forEach(item => markerFor(item, 'ktv'));
+  if (showMalls) places.filter(item => group(item) === '商场' && !listed.has(item) && matches(item))
+    .forEach(item => markerFor(item, 'mall'));
+  renderMarkers.forEach(draw => draw());
+}
+search.addEventListener('input', render);
+byId('metro').addEventListener('click', () => { showMetro = !showMetro; render(); });
+byId('scenic').addEventListener('click', () => { showScenic = !showScenic; render(); });
+byId('ktv').addEventListener('click', () => { showKtv = !showKtv; render(); });
+byId('mall').addEventListener('click', () => { showMalls = !showMalls; render(); });
+render();
+</script>
+</body></html>
